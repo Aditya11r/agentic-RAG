@@ -1,0 +1,15 @@
+streamlit
+langgraph
+langgraph-checkpoint-sqlite
+langchain
+langchain-openai
+langchain-community
+langchain-huggingface
+langchain-text-splitters
+faiss-cpu
+sentence-transformers
+duckduckgo-search
+requests
+pypdf
+python-dotenv
+pydantic

@@ -1,0 +1,23 @@
+# Environment
+.env
+
+# Database (persists locally, not needed in repo)
+*.db
+*.db-shm
+*.db-wal
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+myenv/ 
+
+# Vector store cache (rebuilt automatically)
+faiss_index/
+
+# OS
+.DS_Store
+Thumbs.db
