@@ -368,7 +368,7 @@ def _make_nodes(model: ChatOpenAI):
         base_format = (
             "Subject: <summary>\n\n"
             "Dear Billing Team,\n\n"
-            "<2-3 sentences explaining the customer issue clearly>\n\n"
+            "<explaining the customer issue clearly if not specified leave it blank>\n\n"
             "Relevant Details:\n"
             f"- Customer Query: {query}\n"
             f"- System Response: {response}\n\n"
