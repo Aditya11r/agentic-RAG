@@ -5,6 +5,7 @@ database.py  –  SQLite persistence layer for threads & UI chat history
 from __future__ import annotations
 
 import re
+import uuid
 import sqlite3
 import json
 from datetime import datetime
@@ -28,8 +29,17 @@ def _conn():
 def init_db() -> None:
     with _conn() as con:
         con.executescript("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id     TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                email       TEXT NOT NULL UNIQUE,
+                created_at  TEXT NOT NULL,
+                last_seen   TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS threads (
                 thread_id   TEXT PRIMARY KEY,
+                user_id     TEXT NOT NULL DEFAULT 'anonymous',
                 title       TEXT NOT NULL,
                 intent      TEXT,
                 created_at  TEXT NOT NULL,
@@ -46,14 +56,13 @@ def init_db() -> None:
                 FOREIGN KEY (thread_id) REFERENCES threads(thread_id)
             );
 
-            CREATE INDEX IF NOT EXISTS idx_messages_thread
-                ON messages(thread_id);
+            CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id);
+            CREATE INDEX IF NOT EXISTS idx_threads_user    ON threads(user_id);
         """)
 
 
 # ─────────────────────────────────────────────────────────────
 # ONE-TIME CLEANUP — strips HTML tags stored in content by old code versions
-# Safe to call on every startup; is a no-op once rows are clean.
 # ─────────────────────────────────────────────────────────────
 _HTML_TAG = re.compile(r'<[^>]+>')
 
@@ -65,10 +74,6 @@ def _strip_html(text: str) -> str:
     return text.strip()
 
 def clean_html_messages() -> None:
-    """
-    Find any messages whose content contains raw HTML tags (from old buggy
-    code that stored rendered HTML in the DB) and strip them to plain text.
-    """
     with _conn() as con:
         rows = con.execute(
             "SELECT id, content FROM messages WHERE content LIKE '%<%>%' OR content LIKE '%<div%'"
@@ -76,21 +81,65 @@ def clean_html_messages() -> None:
         for row in rows:
             cleaned = _strip_html(row["content"])
             if cleaned != row["content"]:
-                con.execute(
-                    "UPDATE messages SET content=? WHERE id=?",
-                    (cleaned, row["id"]),
-                )
+                con.execute("UPDATE messages SET content=? WHERE id=?",
+                            (cleaned, row["id"]))
 
 
 # ─────────────────────────────────────────────────────────────
-# THREAD CRUD
+# USER CRUD
 # ─────────────────────────────────────────────────────────────
-def create_thread(thread_id: str, title: str, intent: Optional[str] = None) -> None:
+def get_or_create_user(name: str, email: str) -> dict:
+    """
+    Look up user by email.
+    - Returning user  → update name & last_seen, return existing user dict.
+    - New user        → create record, return new user dict with is_new=True.
+    """
+    email = email.strip().lower()
+    name  = name.strip()
+    now   = _now()
+
+    with _conn() as con:
+        row = con.execute(
+            "SELECT * FROM users WHERE email=?", (email,)
+        ).fetchone()
+
+        if row:
+            con.execute(
+                "UPDATE users SET name=?, last_seen=? WHERE email=?",
+                (name, now, email),
+            )
+            user           = dict(row)
+            user["name"]   = name
+            user["last_seen"] = now
+            user["is_new"] = False
+            return user
+        else:
+            user_id = str(uuid.uuid4())
+            con.execute(
+                "INSERT INTO users VALUES (?,?,?,?,?)",
+                (user_id, name, email, now, now),
+            )
+            return {
+                "user_id":    user_id,
+                "name":       name,
+                "email":      email,
+                "created_at": now,
+                "last_seen":  now,
+                "is_new":     True,
+            }
+
+
+# ─────────────────────────────────────────────────────────────
+# THREAD CRUD  (now carries user_id)
+# ─────────────────────────────────────────────────────────────
+def create_thread(thread_id: str, title: str,
+                  user_id: str = "anonymous",
+                  intent: Optional[str] = None) -> None:
     now = _now()
     with _conn() as con:
         con.execute(
-            "INSERT OR IGNORE INTO threads VALUES (?,?,?,?,?)",
-            (thread_id, title, intent, now, now),
+            "INSERT OR IGNORE INTO threads VALUES (?,?,?,?,?,?)",
+            (thread_id, user_id, title, intent, now, now),
         )
 
 
@@ -109,11 +158,18 @@ def update_thread(thread_id: str, title: Optional[str] = None,
             )
 
 
-def list_threads() -> List[dict]:
+def list_threads(user_id: Optional[str] = None) -> List[dict]:
+    """Return threads for a specific user, or all if user_id is None."""
     with _conn() as con:
-        rows = con.execute(
-            "SELECT * FROM threads ORDER BY updated_at DESC"
-        ).fetchall()
+        if user_id:
+            rows = con.execute(
+                "SELECT * FROM threads WHERE user_id=? ORDER BY updated_at DESC",
+                (user_id,),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                "SELECT * FROM threads ORDER BY updated_at DESC"
+            ).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -136,7 +192,7 @@ def get_thread(thread_id: str) -> Optional[dict]:
 # ─────────────────────────────────────────────────────────────
 def add_message(thread_id: str, role: str, content: str,
                 meta: Optional[dict] = None) -> None:
-    # Guard: never store HTML tags in content — strip them defensively
+    # Guard: never store HTML tags in content
     if '<' in content and '>' in content:
         content = _strip_html(content)
     with _conn() as con:

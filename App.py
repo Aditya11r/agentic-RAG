@@ -3,6 +3,7 @@ app.py  –  Max Hospital AI Assistant  |  Streamlit Frontend
 """
 
 import html as html_lib
+import re
 import streamlit as st
 from datetime import datetime
 
@@ -45,49 +46,88 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     color: white !important;
 }
 
+/* ── Brand header ── */
 .brand-header {
     background: linear-gradient(135deg, #0f6cbd 0%, #1a8cff 100%);
     padding: 16px 20px; border-radius: 12px;
-    margin-bottom: 20px; text-align: center;
+    margin-bottom: 16px; text-align: center;
 }
 .brand-header h2 { color: white !important; margin: 0; font-size: 1.1rem; font-weight: 700; }
 .brand-header p  { color: rgba(255,255,255,0.8) !important; margin: 4px 0 0; font-size: 0.75rem; }
+
+/* ── User card in sidebar ── */
+.user-card {
+    background: #2d3f55;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 11px 14px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.user-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, #0f6cbd, #1a8cff);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: white !important;
+    flex-shrink: 0;
+}
+.user-info .uname  { font-size: 0.84rem; font-weight: 600; color: #e2e8f0 !important; }
+.user-info .uemail { font-size: 0.68rem; color: #94a3b8 !important; }
 
 /* ── Stat cards ── */
 .stat-card { background: #2d3f55; border: 1px solid #334155; border-radius: 12px; padding: 16px; text-align: center; }
 .stat-card .num { font-size: 1.6rem; font-weight: 700; color: #60a5fa !important; }
 .stat-card .lbl { font-size: 0.75rem; color: #94a3b8 !important; margin-top: 2px; }
 
+/* ── LOGIN SCREEN ── */
+.login-outer {
+    display: flex; justify-content: center;
+    padding-top: 48px;
+}
+.login-card {
+    background: white; border-radius: 20px;
+    padding: 40px 38px; width: 100%; max-width: 420px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.10);
+}
+.login-logo { text-align: center; margin-bottom: 26px; }
+.login-logo .licon { font-size: 3rem; display: block; }
+.login-logo h1 { font-size: 1.25rem; font-weight: 700; color: #0f172a; margin: 10px 0 4px; }
+.login-logo p  { font-size: 0.82rem; color: #64748b; margin: 0; }
+hr.ldiv { border: none; border-top: 1px solid #e2e8f0; margin: 20px 0; }
+.returning-badge {
+    background: #f0fdf4; border: 1px solid #bbf7d0;
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 0.78rem; color: #15803d;
+    margin-bottom: 12px; text-align: center;
+}
+
 /* ── Messages ── */
 .msg-user      { display: flex; justify-content: flex-end; margin: 10px 0; }
 .msg-assistant { display: flex; justify-content: flex-start; margin: 10px 0; align-items: flex-start; }
 
-/* FIX: word-wrap + overflow hidden to prevent text leaking out */
 .bubble-user {
     background: linear-gradient(135deg, #0f6cbd, #1a8cff);
     color: white; border-radius: 18px 18px 4px 18px;
     padding: 12px 16px; max-width: 68%;
     font-size: 0.875rem; line-height: 1.6;
     box-shadow: 0 2px 8px rgba(15,108,189,0.3);
-    word-wrap: break-word; overflow-wrap: break-word;
-    white-space: pre-wrap;
+    word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap;
 }
 .bubble-assistant {
     background: white; color: #1e293b;
-    border: 1px solid #e2e8f0;
-    border-radius: 18px 18px 18px 4px;
+    border: 1px solid #e2e8f0; border-radius: 18px 18px 18px 4px;
     padding: 12px 16px; max-width: 72%;
     font-size: 0.875rem; line-height: 1.6;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    word-wrap: break-word; overflow-wrap: break-word;
-    white-space: pre-wrap;
+    word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap;
 }
 .bubble-system {
     background: #fffbeb; color: #92400e;
     border: 1px solid #fcd34d; border-radius: 10px;
     padding: 10px 14px; font-size: 0.82rem;
-    width: 100%; margin: 6px 0;
-    word-wrap: break-word;
+    width: 100%; margin: 6px 0; word-wrap: break-word;
 }
 .avatar {
     width: 30px; height: 30px; border-radius: 50%;
@@ -104,14 +144,13 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .badge-general { background: #d1fae5; color: #065f46; }
 .badge-tech    { background: #fce7f3; color: #9d174d; }
 
-/* ── Status bar — compact, max 4 steps visible ── */
+/* ── Status bar ── */
 .status-bar {
     display: flex; align-items: center; gap: 6px;
     background: #f0f9ff; border: 1px solid #bae6fd;
     border-radius: 8px; padding: 8px 12px;
     font-size: 0.78rem; color: #0369a1;
-    margin: 6px 0; overflow: hidden;
-    white-space: nowrap;
+    margin: 6px 0; overflow: hidden; white-space: nowrap;
 }
 .status-bar .spin {
     width: 14px; height: 14px; border-radius: 50%;
@@ -123,9 +162,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .step-sep    { color: #cbd5e1; }
 
 /* ── Streaming cursor ── */
-.streaming-cursor::after {
-    content: '▋'; animation: blink 0.8s step-end infinite; color: #0f6cbd;
-}
+.streaming-cursor::after { content: '▋'; animation: blink 0.8s step-end infinite; color: #0f6cbd; }
 
 /* ── HITL panels ── */
 .hitl-panel {
@@ -151,16 +188,14 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
 /* ── Quick-start chips ── */
 .chip {
-    display: inline-block;
-    background: #f1f5f9; border: 1px solid #e2e8f0;
+    display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0;
     border-radius: 99px; padding: 5px 12px;
-    font-size: 0.78rem; color: #475569; margin: 3px;
-    cursor: pointer; transition: all 0.15s;
+    font-size: 0.78rem; color: #475569; margin: 3px; cursor: pointer;
 }
 .chip:hover { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
 
-@keyframes spin   { to { transform: rotate(360deg); } }
-@keyframes blink  { 50% { opacity: 0; } }
+@keyframes spin  { to { transform: rotate(360deg); } }
+@keyframes blink { 50% { opacity: 0; } }
 </style>
 """, unsafe_allow_html=True)
 
@@ -169,20 +204,30 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 # INIT
 # ─────────────────────────────────────────────────────────────
 db.init_db()
-db.clean_html_messages()   # strip stale HTML-in-content rows from old code versions
+db.clean_html_messages()
 workflow = ag.get_workflow()
 
-if "active_thread"  not in st.session_state: st.session_state.active_thread  = None
-if "pending_state"  not in st.session_state: st.session_state.pending_state  = {}
-if "is_streaming"   not in st.session_state: st.session_state.is_streaming   = False
+# Session state defaults
+for _k, _v in [
+    ("user",          None),
+    ("active_thread", None),
+    ("pending_state", {}),
+    ("is_streaming",  False),
+]:
+    if _k not in st.session_state:
+        st.session_state[_k] = _v
 
 
 # ─────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────
+def _valid_email(email: str) -> bool:
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email.strip()))
+
+
 def _badge(intent: str) -> str:
     cls  = {"billing": "badge-billing", "general": "badge-general",
-             "tech": "badge-tech"}.get(intent or "", "badge-general")
+            "tech": "badge-tech"}.get(intent or "", "badge-general")
     icon = {"billing": "💳", "general": "💬", "tech": "🔧"}.get(intent or "", "💬")
     return f'<span class="badge {cls}">{icon} {(intent or "general").title()}</span>'
 
@@ -201,7 +246,6 @@ def _fmt_time(ts: str) -> str:
 
 def _render_message(msg: dict):
     role    = msg["role"]
-    # FIX: always escape content before injecting into HTML to prevent leakage
     content = html_lib.escape(msg.get("content", ""))
     meta    = msg.get("meta", {})
     ts      = _fmt_time(msg.get("created_at", ""))
@@ -234,7 +278,6 @@ def _render_message(msg: dict):
 
 
 def _run_query(thread_id: str, query: str):
-    """Stream agent execution, showing a compact live status bar."""
     db.add_message(thread_id, "user", query)
     st.session_state.is_streaming = True
 
@@ -242,9 +285,8 @@ def _run_query(thread_id: str, query: str):
     response_ph = st.empty()
     error_ph    = st.empty()
 
-    # Only keep the last 3 completed steps to avoid overflow
     MAX_VISIBLE_STEPS = 3
-    completed_steps: list[tuple[str, str]] = []   # (icon, short_label)
+    completed_steps: list = []
     streaming_text = ""
 
     try:
@@ -252,10 +294,8 @@ def _run_query(thread_id: str, query: str):
             etype = event["type"]
 
             if etype == "node_start":
-                icon  = event["icon"]
-                label = event["label"]
-                # Show spinner with last N done steps + current active step
-                visible = completed_steps[-MAX_VISIBLE_STEPS:]
+                icon, label = event["icon"], event["label"]
+                visible   = completed_steps[-MAX_VISIBLE_STEPS:]
                 done_html = "".join(
                     f'<span class="step-done">{i} {l}</span>'
                     f'<span class="step-sep"> › </span>'
@@ -263,8 +303,7 @@ def _run_query(thread_id: str, query: str):
                 )
                 status_ph.markdown(f"""
                 <div class="status-bar">
-                  <div class="spin"></div>
-                  {done_html}
+                  <div class="spin"></div>{done_html}
                   <span class="step-active">{icon} {label}</span>
                 </div>""", unsafe_allow_html=True)
 
@@ -320,9 +359,8 @@ def _run_query(thread_id: str, query: str):
             elif etype == "error":
                 status_ph.empty()
                 response_ph.empty()
-                msg_text = event["message"]
-                error_ph.error(f"⚠️ {msg_text}")
-                db.add_message(thread_id, "system", f"Error: {msg_text}")
+                error_ph.error(f"⚠️ {event['message']}")
+                db.add_message(thread_id, "system", f"Error: {event['message']}")
 
     except Exception as e:
         status_ph.empty()
@@ -334,8 +372,65 @@ def _run_query(thread_id: str, query: str):
 
 
 # ─────────────────────────────────────────────────────────────
-# SIDEBAR
+# LOGIN SCREEN  — shown when no user in session
 # ─────────────────────────────────────────────────────────────
+if not st.session_state.user:
+    # Hide sidebar on login screen
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"]      { display: none !important; }
+    [data-testid="collapsedControl"] { display: none !important; }
+    </style>""", unsafe_allow_html=True)
+
+    # Centre the card using columns
+    _, col, _ = st.columns([1, 1.6, 1])
+    with col:
+        st.markdown("""
+        <div class="login-card">
+          <div class="login-logo">
+            <span class="licon">🏥</span>
+            <h1>Max Hospital AI Assistant</h1>
+            <p>Enter your name and email to access your personalised chat history.</p>
+          </div>
+          <hr class="ldiv">
+        </div>""", unsafe_allow_html=True)
+
+        with st.form("login_form"):
+            name  = st.text_input("Full Name", placeholder="e.g. Rahul Sharma")
+            email = st.text_input("Email Address", placeholder="e.g. rahul@example.com")
+            go    = st.form_submit_button("Continue →", use_container_width=True,
+                                          type="primary")
+
+        if go:
+            name  = name.strip()
+            email = email.strip()
+            if not name:
+                st.error("Please enter your name.")
+            elif not _valid_email(email):
+                st.error("Please enter a valid email address.")
+            else:
+                user = db.get_or_create_user(name, email)
+                st.session_state.user          = user
+                st.session_state.active_thread = None
+                st.session_state.pending_state = {}
+                if user.get("is_new"):
+                    st.success(f"Welcome, {name}! Your account has been created.")
+                else:
+                    threads_count = len(db.list_threads(user_id=user["user_id"]))
+                    st.success(
+                        f"Welcome back, {name}! "
+                        f"{'Your ' + str(threads_count) + ' conversation(s) have been restored.' if threads_count else 'No previous conversations found.'}"
+                    )
+                st.rerun()
+
+    st.stop()
+
+
+# ─────────────────────────────────────────────────────────────
+# SIDEBAR  (only rendered after login)
+# ─────────────────────────────────────────────────────────────
+user = st.session_state.user
+
 with st.sidebar:
     st.markdown("""
     <div class="brand-header">
@@ -343,23 +438,38 @@ with st.sidebar:
       <p>AI Assistant · Dehradun</p>
     </div>""", unsafe_allow_html=True)
 
-    all_threads = db.list_threads()
+    # ── User card ───────────────────────────────────────────
+    initials = "".join(w[0].upper() for w in user["name"].split()[:2])
+    st.markdown(f"""
+    <div class="user-card">
+      <div class="user-avatar">{initials}</div>
+      <div class="user-info">
+        <div class="uname">{html_lib.escape(user['name'])}</div>
+        <div class="uemail">{html_lib.escape(user['email'])}</div>
+      </div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── Stats ───────────────────────────────────────────────
+    all_threads = db.list_threads(user_id=user["user_id"])
     c1, c2 = st.columns(2)
     with c1:
         st.markdown(f"""<div class="stat-card">
             <div class="num">{len(all_threads)}</div>
             <div class="lbl">Chats</div></div>""", unsafe_allow_html=True)
     with c2:
-        total = sum(len(db.get_messages(t["thread_id"])) for t in all_threads) if all_threads else 0
+        total_msgs = sum(
+            len(db.get_messages(t["thread_id"])) for t in all_threads
+        ) if all_threads else 0
         st.markdown(f"""<div class="stat-card">
-            <div class="num">{total}</div>
+            <div class="num">{total_msgs}</div>
             <div class="lbl">Messages</div></div>""", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # ── New conversation ────────────────────────────────────
     if st.button("＋  New Conversation", use_container_width=True, type="primary"):
         tid = ag.new_thread_id()
-        db.create_thread(tid, "New Conversation")
+        db.create_thread(tid, "New Conversation", user_id=user["user_id"])
         st.session_state.active_thread = tid
         st.session_state.pending_state = {}
         st.rerun()
@@ -392,7 +502,16 @@ with st.sidebar:
             st.caption(_fmt_time(t["updated_at"]))
 
     st.markdown("---")
-    st.markdown("""<div style="font-size:0.7rem;color:#64748b;text-align:center">
+
+    # ── Sign out ────────────────────────────────────────────
+    if st.button("⬅️  Sign Out", use_container_width=True):
+        st.session_state.user          = None
+        st.session_state.active_thread = None
+        st.session_state.pending_state = {}
+        st.session_state.is_streaming  = False
+        st.rerun()
+
+    st.markdown("""<div style="font-size:0.7rem;color:#64748b;text-align:center;margin-top:8px">
     Max Super Specialty Hospital · Dehradun<br>FY 24-25 · LangGraph + Streamlit
     </div>""", unsafe_allow_html=True)
 
@@ -404,10 +523,10 @@ active_tid = st.session_state.active_thread
 
 if not active_tid:
     # ── Welcome / no thread selected ─────────────────────────
-    st.markdown("""
+    st.markdown(f"""
     <div class="empty-state">
       <div class="icon">🏥</div>
-      <h3>Welcome to Max Hospital AI Assistant</h3>
+      <h3>Welcome back, {html_lib.escape(user['name'])}!</h3>
       <p>Select a conversation from the sidebar or start a new one.</p>
     </div>""", unsafe_allow_html=True)
 
@@ -425,7 +544,7 @@ if not active_tid:
         with cols[i % 3]:
             if st.button(q, key=f"s_{i}", use_container_width=True):
                 tid = ag.new_thread_id()
-                db.create_thread(tid, db.smart_title(q))
+                db.create_thread(tid, db.smart_title(q), user_id=user["user_id"])
                 st.session_state.active_thread = tid
                 st.session_state.pending_state = {}
                 _run_query(tid, q)
