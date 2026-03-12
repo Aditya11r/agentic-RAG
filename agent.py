@@ -51,7 +51,7 @@ def _make_model() -> ChatOpenAI:
 # ─────────────────────────────────────────────────────────────
 class AgentState(TypedDict):
     query:            str
-    intent:           Optional[Literal["billing", "tech", "general"]]
+    intent:           Optional[Literal["billing","general"]]
     response:         Optional[str]
     email_required:   Optional[bool]
     draft_version:    int
@@ -106,7 +106,7 @@ def search(query: str) -> str:
     """Search the web for news or general knowledge."""
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, region="us-en", max_results=3))
+            results = list(ddgs.text(query, region="us-en", max_results=5))
         if not results:
             return "No results found."
         return "\n".join(
@@ -210,11 +210,12 @@ def _make_nodes(model: ChatOpenAI):
             messages.append(HumanMessage(content=query))
 
         prompt = (
-            "Classify this hospital support query into exactly one category.\n\n"
+            "You are a support query classifier for a HOSPITAL billing system.\n\n"
+            "Classify into ONE category:\n\n"
             "billing → charges, fees, costs, payments, refunds, invoices, advances, "
-            "OPD/IPD rates, room tariffs, doctor fees, registration charges, billing team\n"
-            "tech    → login issues, portal bugs, app errors\n"
+            "OPD/IPD rates, room tariffs, doctor fees, registration charges\n\n"
             "general → everything else: greetings, math, news, stocks, health info\n\n"
+            "Return only the category name.\n\n"
             f"Query: {query}"
         )
         try:
@@ -240,8 +241,8 @@ def _make_nodes(model: ChatOpenAI):
         ]
         if any(p in query.lower() for p in escalation_phrases):
             text = (
-                "I understand you'd like to reach the billing team directly. "
-                "I'll prepare an escalation email for your review."
+               "I'll escalate this to the billing team on your behalf. "
+                "Please review the draft email below before it's sent."
             )
             messages.append(AIMessage(content=text))
             return {"response": text, "email_required": True, "messages": messages}
@@ -255,15 +256,29 @@ def _make_nodes(model: ChatOpenAI):
             messages.append(AIMessage(content=fallback))
             return {"response": fallback, "email_required": False, "messages": messages}
 
-        prompt = (
-            "You are a billing support assistant for Max Hospital, Dehradun.\n\n"
-            "Step 1: Use rag_tool to retrieve the relevant billing policy.\n"
-            "Step 2: Answer the customer's question clearly and concisely based "
-            "ONLY on the retrieved policy. Do not make up charges.\n\n"
-            "If the issue needs manual intervention (duplicate charge, refund, "
-            "account correction) say: 'This requires escalation to the billing team.'\n\n"
-            f"Customer Query: {query}"
-        )
+        prompt = f"""
+        You are a billing support assistant.
+
+        If the user asks about billing policies like refund, payment failure,
+        subscription rules, invoices etc, you MUST use the rag_tool to retrieve
+        relevant information from the billing documents.
+
+        If the issue requires manual intervention (duplicate charge, refund processing,
+        account correction, or investigation), clearly state that the issue requires
+        ESCALATION.
+
+        IMPORTANT:
+        When escalation is required only then, include one of the following phrases in your response:
+        - escalate to billing team
+        - manual review required
+        - duplicate charge investigation required
+        - investigation required by billing team
+
+        These phrases help the system trigger escalation.
+
+        Customer Query:
+        {query}"""
+        
         try:
             result = bill_llm.invoke([SystemMessage(content=prompt)] + messages)
         except Exception as e:
@@ -312,7 +327,7 @@ def _make_nodes(model: ChatOpenAI):
             "  - News / facts   → use search tool\n"
             "  - Stock prices   → use get_stock tool\n"
             "  - Greetings      → reply directly, no tool\n"
-            "  - Tech issues    → tell user to contact IT support, no tool\n\n"
+            "  - Anything else  → answer from your knowledge\n\n"
             f"User: {query}"
         )
         try:
@@ -351,10 +366,10 @@ def _make_nodes(model: ChatOpenAI):
         messages         = list(state.get("messages", []))
 
         base_format = (
-            "Subject: [Max Hospital] <concise issue summary>\n\n"
+            "Subject: <summary>\n\n"
             "Dear Billing Team,\n\n"
             "<2-3 sentences explaining the customer issue clearly>\n\n"
-            "Details:\n"
+            "Relevant Details:\n"
             f"- Customer Query: {query}\n"
             f"- System Response: {response}\n\n"
             "Requested Action:\n"
@@ -402,7 +417,7 @@ def _make_nodes(model: ChatOpenAI):
 # ROUTER SCHEMA
 # ─────────────────────────────────────────────────────────────
 class _RouterOutput(BaseModel):
-    intent: Literal["billing", "tech", "general"]
+    intent: Literal["billing", "general"]
 
 
 # ─────────────────────────────────────────────────────────────
@@ -458,7 +473,6 @@ def build_workflow(db_path: str = "hospital_chat.db"):
 
     b.add_conditional_edges("router", _route_intent, {
         "billing": "billing_query",
-        "tech":    "general_query",
         "general": "general_query",
     })
 
